@@ -614,4 +614,8 @@ async def get_price_history(
 
 
 def main() -> None:
+    # Trigger registration of extended PRD §5 tools (download / financials / options / ...).
+    # Imported here to avoid a circular import at module load time.
+    import yfmcp.extended  # noqa: F401
+
     mcp.run()
