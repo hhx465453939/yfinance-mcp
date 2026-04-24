@@ -102,10 +102,11 @@ Fetch financial statements (income statement and balance sheet) with historical 
 | `symbol` | string | Yes | Stock ticker symbol |
 | `frequency` | string | No | `"annual"` (yearly), `"quarterly"` (quarterly), or `"ttm"` (trailing twelve months). Default: `"annual"` |
 
-**Returns:** JSON object with income statement and balance sheet data for each reporting period.
+**Returns:** JSON object with income statement, balance sheet, and cash flow data for each reporting period.
 
 - **Income Statement fields**: EBIT, Net Income, Tax Provision, Pretax Income, Interest Expense, Total Revenue, Operating Income, EBITDA, Normalized Income
 - **Balance Sheet fields**: Stockholders Equity, Total Debt, Cash And Cash Equivalents, Invested Capital, Net Debt, Total Assets, Total Liabilities Net Minority Interest, Net Tangible Assets, Tangible Book Value
+- **Cash Flow fields**: Operating Cash Flow, Free Cash Flow, Capital Expenditure, Net Income From Continuing Operations, Depreciation And Amortization, Change In Working Capital, Cash Dividends Paid
 
 ## Usage
 

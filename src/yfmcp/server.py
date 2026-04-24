@@ -634,9 +634,9 @@ async def get_financials(
         ),
     ] = "annual",
 ) -> str:
-    """Fetch financial statements (income statement and balance sheet) with historical data.
+    """Fetch financial statements (income statement, balance sheet, and cash flow) with historical data.
 
-    Returns JSON with income statement and balance sheet data across reporting periods.
+    Returns JSON with income statement, balance sheet, and cash flow data across reporting periods.
 
     Use the data to analyze trends, calculate ratios, or compare periods.
     """
@@ -657,16 +657,20 @@ async def get_financials(
 
     income_stmt = None
     balance_sheet = None
+    cash_flow = None
 
     if frequency == "annual":
         income_stmt = await asyncio.to_thread(lambda: ticker.income_stmt)
         balance_sheet = await asyncio.to_thread(lambda: ticker.balance_sheet)
+        cash_flow = await asyncio.to_thread(lambda: ticker.cashflow)
     elif frequency == "quarterly":
         income_stmt = await asyncio.to_thread(lambda: ticker.quarterly_income_stmt)
         balance_sheet = await asyncio.to_thread(lambda: ticker.quarterly_balance_sheet)
+        cash_flow = await asyncio.to_thread(lambda: ticker.quarterly_cashflow)
     elif frequency == "ttm":
         income_stmt = await asyncio.to_thread(lambda: ticker.ttm_income_stmt)
         balance_sheet = None  # TTM balance sheet not directly available
+        cash_flow = None  # TTM cash flow not directly available
     else:
         return create_error_response(
             f"Invalid frequency '{frequency}'. Valid options: 'annual', 'quarterly', 'ttm'.",
@@ -674,7 +678,7 @@ async def get_financials(
             details={"frequency": frequency, "valid_options": ["annual", "quarterly", "ttm"]},
         )
 
-    result = _build_financials_response(income_stmt, balance_sheet)
+    result = _build_financials_response(income_stmt, balance_sheet, cash_flow)
 
     if not result:
         return create_error_response(
@@ -686,8 +690,8 @@ async def get_financials(
     return dump_json(result)
 
 
-def _build_financials_response(income_stmt, balance_sheet) -> dict:
-    """Build financials response from income statement and balance sheet DataFrames."""
+def _build_financials_response(income_stmt, balance_sheet, cash_flow=None) -> dict:
+    """Build financials response from income statement, balance sheet, and cash flow DataFrames."""
     result = {}
 
     if income_stmt is not None and not income_stmt.empty:
@@ -727,6 +731,21 @@ def _build_financials_response(income_stmt, balance_sheet) -> dict:
             result["balance_sheet"][field] = {
                 str(col.date()): balance_sheet.loc[field, col] for col in balance_sheet.columns
             }
+
+    if cash_flow is not None and not cash_flow.empty:
+        cash_flow_fields = [
+            "Operating Cash Flow",
+            "Free Cash Flow",
+            "Capital Expenditure",
+            "Net Income From Continuing Operations",
+            "Depreciation And Amortization",
+            "Change In Working Capital",
+            "Cash Dividends Paid",
+        ]
+        available_cash_flow_fields = [f for f in cash_flow_fields if f in cash_flow.index]
+        result["cash_flow"] = {}
+        for field in available_cash_flow_fields:
+            result["cash_flow"][field] = {str(col.date()): cash_flow.loc[field, col] for col in cash_flow.columns}
 
     return result
 
