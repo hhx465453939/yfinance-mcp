@@ -95,7 +95,7 @@ Fetch historical price data and optionally generate technical analysis charts.
 
 ### `yfinance_get_financials`
 
-Fetch financial statements (income statement and balance sheet) with historical data.
+Fetch financial statements (income statement, balance sheet, and cash flow) with historical data.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
