@@ -14,6 +14,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server that p
 ## Features
 
 - **Stock Data** — Company info, financials, valuation metrics, dividends, and trading data
+- **Financial Statements** — Income statement and balance sheet with historical data (EBIT, Invested Capital, etc.)
 - **Financial News** — Recent news articles and press releases for any ticker
 - **Search** — Find stocks, ETFs, and news across Yahoo Finance
 - **Sector Rankings** — Top ETFs, mutual funds, companies, growth leaders, and top performers by sector
@@ -91,6 +92,21 @@ Fetch historical price data and optionally generate technical analysis charts.
 **Returns:**
 - Without `chart_type`: Markdown table with Date, Open, High, Low, Close, Volume, Dividends, and Stock Splits columns.
 - With `chart_type`: Base64-encoded WebP image for efficient token usage.
+
+### `yfinance_get_financials`
+
+Fetch financial statements (income statement, balance sheet, and cash flow) with historical data.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `symbol` | string | Yes | Stock ticker symbol |
+| `frequency` | string | No | `"annual"` (yearly), `"quarterly"` (quarterly), or `"ttm"` (trailing twelve months). Default: `"annual"` |
+
+**Returns:** JSON object with income statement, balance sheet, and cash flow data for each reporting period.
+
+- **Income Statement fields**: EBIT, Net Income, Tax Provision, Pretax Income, Interest Expense, Total Revenue, Operating Income, EBITDA, Normalized Income
+- **Balance Sheet fields**: Stockholders Equity, Total Debt, Cash And Cash Equivalents, Invested Capital, Net Debt, Total Assets, Total Liabilities Net Minority Interest, Net Tangible Assets, Tangible Book Value
+- **Cash Flow fields**: Operating Cash Flow, Free Cash Flow, Capital Expenditure, Net Income From Continuing Operations, Depreciation And Amortization, Change In Working Capital, Cash Dividends Paid
 
 ## Usage
 
