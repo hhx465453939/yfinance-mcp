@@ -205,6 +205,14 @@ uv run pytest -v -s --cov=src tests
 
 See the demo chatbot in its dedicated repository: [yfinance-mcp-demo](https://github.com/narumiruna/yfinance-mcp-demo)
 
+## Contributors
+
+<a href="https://github.com/narumiruna/yfinance-mcp/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=narumiruna/yfinance-mcp" />
+</a>
+
+Made with [contrib.rocks](https://contrib.rocks).
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
