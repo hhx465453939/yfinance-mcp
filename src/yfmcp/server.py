@@ -659,27 +659,40 @@ async def get_financials(
     balance_sheet = None
     cash_flow = None
 
-    if frequency == "annual":
-        income_stmt = await asyncio.to_thread(lambda: ticker.income_stmt)
-        balance_sheet = await asyncio.to_thread(lambda: ticker.balance_sheet)
-        cash_flow = await asyncio.to_thread(lambda: ticker.cashflow)
-    elif frequency == "quarterly":
-        income_stmt = await asyncio.to_thread(lambda: ticker.quarterly_income_stmt)
-        balance_sheet = await asyncio.to_thread(lambda: ticker.quarterly_balance_sheet)
-        cash_flow = await asyncio.to_thread(lambda: ticker.quarterly_cashflow)
-    elif frequency == "ttm":
-        income_stmt = await asyncio.to_thread(lambda: ticker.ttm_income_stmt)
-        balance_sheet = None  # TTM balance sheet not directly available
-        cash_flow = None  # TTM cash flow not directly available
-    else:
+    if frequency not in {"annual", "quarterly", "ttm"}:
         return create_error_response(
             f"Invalid frequency '{frequency}'. Valid options: 'annual', 'quarterly', 'ttm'.",
             error_code="INVALID_PARAMS",
             details={"frequency": frequency, "valid_options": ["annual", "quarterly", "ttm"]},
         )
 
-    result = _build_financials_response(income_stmt, balance_sheet, cash_flow)
+    try:
+        if frequency == "annual":
+            income_stmt = await asyncio.to_thread(lambda: ticker.income_stmt)
+            balance_sheet = await asyncio.to_thread(lambda: ticker.balance_sheet)
+            cash_flow = await asyncio.to_thread(lambda: ticker.cashflow)
+        elif frequency == "quarterly":
+            income_stmt = await asyncio.to_thread(lambda: ticker.quarterly_income_stmt)
+            balance_sheet = await asyncio.to_thread(lambda: ticker.quarterly_balance_sheet)
+            cash_flow = await asyncio.to_thread(lambda: ticker.quarterly_cashflow)
+        else:
+            income_stmt = await asyncio.to_thread(lambda: ticker.ttm_income_stmt)
+            balance_sheet = None  # TTM balance sheet not directly available
+            cash_flow = None  # TTM cash flow not directly available
 
+        result = _build_financials_response(income_stmt, balance_sheet, cash_flow)
+    except (ConnectionError, TimeoutError, OSError) as exc:
+        return create_error_response(
+            f"Network error while fetching financials for '{symbol}'. Check your internet connection and try again.",
+            error_code="NETWORK_ERROR",
+            details={"symbol": symbol, "frequency": frequency, "exception": str(exc)},
+        )
+    except Exception as exc:
+        return create_error_response(
+            f"Failed to fetch financials for '{symbol}'. Verify the symbol is correct.",
+            error_code="API_ERROR",
+            details={"symbol": symbol, "frequency": frequency, "exception": str(exc)},
+        )
     if not result:
         return create_error_response(
             f"No financial data available for '{symbol}' with frequency='{frequency}'.",
