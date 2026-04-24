@@ -613,5 +613,123 @@ async def get_price_history(
     return generate_chart(symbol=symbol, df=df, chart_type=chart_type)
 
 
+@mcp.tool(
+    name="yfinance_get_financials",
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=True,
+    ),
+)
+async def get_financials(
+    symbol: Annotated[str, Field(description="Stock ticker symbol (e.g., 'AAPL', 'GOOGL', 'MSFT')")],
+    frequency: Annotated[
+        str,
+        Field(
+            description=(
+                "Reporting frequency: 'annual' for yearly, 'quarterly' for quarterly, "
+                "or 'ttm' for trailing twelve months"
+            )
+        ),
+    ] = "annual",
+) -> str:
+    """Fetch financial statements (income statement and balance sheet) with historical data.
+
+    Returns JSON with income statement and balance sheet data across reporting periods.
+
+    Use the data to analyze trends, calculate ratios, or compare periods.
+    """
+    try:
+        ticker = await asyncio.to_thread(yf.Ticker, symbol)
+    except (ConnectionError, TimeoutError, OSError) as exc:
+        return create_error_response(
+            f"Network error while fetching financials for '{symbol}'. Check your internet connection and try again.",
+            error_code="NETWORK_ERROR",
+            details={"symbol": symbol, "exception": str(exc)},
+        )
+    except Exception as exc:
+        return create_error_response(
+            f"Failed to fetch financials for '{symbol}'. Verify the symbol is correct.",
+            error_code="API_ERROR",
+            details={"symbol": symbol, "exception": str(exc)},
+        )
+
+    income_stmt = None
+    balance_sheet = None
+
+    if frequency == "annual":
+        income_stmt = await asyncio.to_thread(lambda: ticker.income_stmt)
+        balance_sheet = await asyncio.to_thread(lambda: ticker.balance_sheet)
+    elif frequency == "quarterly":
+        income_stmt = await asyncio.to_thread(lambda: ticker.quarterly_income_stmt)
+        balance_sheet = await asyncio.to_thread(lambda: ticker.quarterly_balance_sheet)
+    elif frequency == "ttm":
+        income_stmt = await asyncio.to_thread(lambda: ticker.ttm_income_stmt)
+        balance_sheet = None  # TTM balance sheet not directly available
+    else:
+        return create_error_response(
+            f"Invalid frequency '{frequency}'. Valid options: 'annual', 'quarterly', 'ttm'.",
+            error_code="INVALID_PARAMS",
+            details={"frequency": frequency, "valid_options": ["annual", "quarterly", "ttm"]},
+        )
+
+    result = _build_financials_response(income_stmt, balance_sheet)
+
+    if not result:
+        return create_error_response(
+            f"No financial data available for '{symbol}' with frequency='{frequency}'.",
+            error_code="NO_DATA",
+            details={"symbol": symbol, "frequency": frequency},
+        )
+
+    return dump_json(result)
+
+
+def _build_financials_response(income_stmt, balance_sheet) -> dict:
+    """Build financials response from income statement and balance sheet DataFrames."""
+    result = {}
+
+    if income_stmt is not None and not income_stmt.empty:
+        income_fields = [
+            "EBIT",
+            "Net Income",
+            "Tax Provision",
+            "Pretax Income",
+            "Interest Expense",
+            "Total Revenue",
+            "Operating Income",
+            "EBITDA",
+            "Normalized Income",
+        ]
+        available_income_fields = [f for f in income_fields if f in income_stmt.index]
+        result["income_statement"] = {}
+        for field in available_income_fields:
+            result["income_statement"][field] = {
+                str(col.date()): income_stmt.loc[field, col] for col in income_stmt.columns
+            }
+
+    if balance_sheet is not None and not balance_sheet.empty:
+        balance_fields = [
+            "Stockholders Equity",
+            "Total Debt",
+            "Cash And Cash Equivalents",
+            "Invested Capital",
+            "Net Debt",
+            "Total Assets",
+            "Total Liabilities Net Minority Interest",
+            "Net Tangible Assets",
+            "Tangible Book Value",
+        ]
+        available_balance_fields = [f for f in balance_fields if f in balance_sheet.index]
+        result["balance_sheet"] = {}
+        for field in available_balance_fields:
+            result["balance_sheet"][field] = {
+                str(col.date()): balance_sheet.loc[field, col] for col in balance_sheet.columns
+            }
+
+    return result
+
+
 def main() -> None:
     mcp.run()
