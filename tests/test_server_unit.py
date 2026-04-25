@@ -10,6 +10,7 @@ import pytest
 
 from yfmcp.server import _build_financials_response
 from yfmcp.server import get_financials
+from yfmcp.server import get_price_history
 from yfmcp.server import get_top_companies
 from yfmcp.server import get_top_etfs
 from yfmcp.server import get_top_growth_companies
@@ -217,6 +218,37 @@ async def test_get_financials_statement_read_api_error(mock_to_thread: AsyncMock
     assert data["details"]["symbol"] == "AAPL"
     assert data["details"]["frequency"] == "annual"
     assert data["details"]["exception"] == "statement read failed"
+
+
+@pytest.mark.asyncio
+@patch("yfmcp.server.yf.Ticker")
+@patch("yfmcp.server.asyncio.to_thread")
+async def test_get_price_history_returns_markdown_table_when_chart_type_is_none(
+    mock_to_thread: AsyncMock, mock_ticker: MagicMock
+) -> None:
+    """Test price history without chart_type returns DataFrame markdown output."""
+    df = pd.DataFrame(
+        {
+            "Open": [100.0],
+            "High": [110.0],
+            "Low": [95.0],
+            "Close": [105.0],
+            "Volume": [1_000_000],
+        },
+        index=[pd.Timestamp("2024-01-02")],
+    )
+    mock_ticker_obj = MagicMock()
+    mock_ticker_obj.history.return_value = df
+    mock_ticker.return_value = mock_ticker_obj
+    mock_to_thread.side_effect = _run_to_thread
+
+    result = await get_price_history("AAPL", "1mo", "1d", None)
+
+    assert isinstance(result, str)
+    assert result == df.to_markdown()
+    assert "Open" in result
+    assert "Close" in result
+    assert "|" in result
 
 
 @pytest.mark.asyncio
