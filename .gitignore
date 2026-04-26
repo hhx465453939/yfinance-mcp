@@ -6,6 +6,15 @@ __pycache__/
 # C extensions
 *.so
 
+# 脚手架
+.claude
+.cursor
+.codex
+.gemini
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+
 # Distribution / packaging
 .Python
 build/
