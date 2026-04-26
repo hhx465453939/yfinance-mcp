@@ -20,6 +20,7 @@ from yfmcp.types import TopType
 from yfmcp.utils import create_error_response
 from yfmcp.utils import dump_json
 from yfmcp.throttle import make_ticker, throttle
+from yfmcp.cache import cache
 
 # https://github.com/jlowin/fastmcp/issues/81#issuecomment-2714245145
 mcp = FastMCP("yfinance_mcp", log_level="ERROR")
@@ -50,6 +51,8 @@ async def get_ticker_info(
 
     Note: Available fields vary by security type. Timestamps are converted to readable dates.
     """
+    if _c := cache.get("get_ticker_info", {"symbol": symbol}):
+        return _c
     try:
         ticker = await make_ticker(symbol)
         info = await asyncio.to_thread(lambda: ticker.info)
@@ -89,7 +92,9 @@ async def get_ticker_info(
             except Exception as exc:
                 logger.error("Unable to convert {}: {} to datetime: {}", key, value, exc)
 
-    return dump_json(info)
+    result = dump_json(info)
+    cache.put("get_ticker_info", {"symbol": symbol}, result)
+    return result
 
 
 @mcp.tool(
@@ -119,6 +124,8 @@ async def get_ticker_news(
 
     Use this to track company announcements, market sentiment, and breaking news.
     """
+    if _c := cache.get('get_ticker_news', {'symbol': symbol}):
+        return _c
     try:
         ticker = await make_ticker(symbol)
         news = await asyncio.to_thread(ticker.get_news)
@@ -143,7 +150,9 @@ async def get_ticker_news(
             details={"symbol": symbol},
         )
 
-    return dump_json(news)
+    result = dump_json(news)
+    cache.put("get_ticker_news", {"symbol": symbol}, result)
+    return result
 
 
 @mcp.tool(
@@ -190,6 +199,8 @@ async def search(
 
     Use this to find ticker symbols, discover related securities, or search financial news.
     """
+    if _c := cache.get('search', {'query': query, 'search_type': search_type}):
+        return _c
     try:
         await throttle()
         s = await asyncio.to_thread(yf.Search, query)
@@ -208,17 +219,19 @@ async def search(
 
     match search_type.lower():
         case "all":
-            return dump_json(s.all)
+            result = dump_json(s.all)
         case "quotes":
-            return dump_json(s.quotes)
+            result = dump_json(s.quotes)
         case "news":
-            return dump_json(s.news)
+            result = dump_json(s.news)
         case _:
             return create_error_response(
                 f"Invalid search_type '{search_type}'. Valid options: 'all', 'quotes', 'news'.",
                 error_code="INVALID_PARAMS",
                 details={"search_type": search_type, "valid_options": ["all", "quotes", "news"]},
             )
+    cache.put("search", {"query": query, "search_type": search_type}, result)
+    return result
 
 
 async def get_top_etfs(
@@ -572,6 +585,9 @@ async def get_price_history(
     Note: Not all period/interval combinations are valid. Minute intervals (1m, 5m, etc.)
     only work with short periods (1d, 5d).
     """
+    _ph_args = {"symbol": symbol, "period": period, "interval": interval}
+    if chart_type is None and (_c := cache.get('get_price_history', _ph_args)):
+        return _c
     try:
         ticker = await make_ticker(symbol)
         df = await asyncio.to_thread(
@@ -615,7 +631,9 @@ async def get_price_history(
         )
 
     if chart_type is None:
-        return df.to_markdown()
+        result = df.to_markdown()
+        cache.put("get_price_history", _ph_args, result)
+        return result
 
     return generate_chart(symbol=symbol, df=df, chart_type=chart_type)
 
@@ -647,6 +665,8 @@ async def get_financials(
 
     Use the data to analyze trends, calculate ratios, or compare periods.
     """
+    if _c := cache.get('get_financials', {'symbol': symbol, 'frequency': frequency}):
+        return _c
     try:
         ticker = await asyncio.to_thread(yf.Ticker, symbol)
     except (ConnectionError, TimeoutError, OSError) as exc:
@@ -707,7 +727,9 @@ async def get_financials(
             details={"symbol": symbol, "frequency": frequency},
         )
 
-    return dump_json(result)
+    result_json = dump_json(result)
+    cache.put("get_financials", {"symbol": symbol, "frequency": frequency}, result_json)
+    return result_json
 
 
 def _build_financials_response(income_stmt, balance_sheet, cash_flow=None) -> dict:

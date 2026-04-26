@@ -35,6 +35,7 @@ from pydantic import Field
 from yfmcp.chart import generate_chart
 from yfmcp.server import mcp
 from yfmcp.throttle import make_ticker, throttled_download
+from yfmcp.cache import cache
 from yfmcp.types import ChartType
 from yfmcp.types import Interval
 from yfmcp.types import Period
@@ -148,6 +149,9 @@ async def download(
 
     Returns JSON: ``{"tickers": [...], "rows": [{Date, Ticker, Open, High, Low, Close, Volume, ...}, ...]}``.
     """
+    _dl_args = {"symbols": sorted(symbols), "period": period, "interval": interval, "start": start, "end": end}
+    if _c := cache.get('download', _dl_args):
+        return _c
     _, err = _validate_date(start, "start")
     if err:
         return create_error_response(err, error_code="INVALID_PARAMS", details={"start": start})
@@ -187,7 +191,9 @@ async def download(
             details={"symbols": symbols},
         )
 
-    return dump_json({"tickers": symbols, "rows": rows})
+    result = dump_json({"tickers": symbols, "rows": rows})
+    cache.put("download", _dl_args, result)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -209,6 +215,9 @@ async def get_history_advanced(
     chart_type: Annotated[ChartType | None, Field(description="Optional chart; omit for Markdown table")] = None,
 ) -> str | ImageContent:
     """``Ticker.history`` with full parameter surface (PRD §5)."""
+    _ha_args = {"symbol": symbol, "start": start, "end": end, "period": period, "interval": interval}
+    if chart_type is None and (_c := cache.get('get_history_advanced', _ha_args)):
+        return _c
     _, err = _validate_date(start, "start")
     if err:
         return create_error_response(err, error_code="INVALID_PARAMS", details={"start": start})
@@ -262,7 +271,9 @@ async def get_history_advanced(
         )
 
     if chart_type is None:
-        return df.to_markdown()
+        result = df.to_markdown()
+        cache.put("get_history_advanced", _ha_args, result)
+        return result
     return generate_chart(symbol=symbol, df=df, chart_type=chart_type)
 
 
@@ -288,6 +299,8 @@ async def get_financials(
     quarterly: Annotated[bool, Field(description="True for quarterly, False for annual (default)")] = False,
 ) -> str:
     """Return one of the three financial statements as JSON records keyed by line item."""
+    if _c := cache.get('get_financials_ext', {'symbol': symbol, 'statement': statement, 'quarterly': quarterly}):
+        return _c
     if statement not in _STATEMENT_ATTR_MAP:
         return create_error_response(
             f"Invalid statement '{statement}'. Valid: income / balance / cashflow.",
@@ -329,6 +342,8 @@ async def get_financials(
             "rows": _df_to_records(df),
         }
     )
+    cache.put("get_financials_ext", {"symbol": symbol, "statement": statement, "quarterly": quarterly}, result)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -345,6 +360,8 @@ async def get_options(
     ] = None,
 ) -> str:
     """List option expirations or fetch the option chain (calls + puts) for a date."""
+    if _c := cache.get('get_options', {'symbol': symbol, 'expiration': expiration}):
+        return _c
     if expiration is not None:
         _, err = _validate_date(expiration, "expiration")
         if err:
@@ -400,6 +417,8 @@ async def get_options(
             "puts": _df_to_records(chain.puts) or [],
         }
     )
+    cache.put("get_options", {"symbol": symbol, "expiration": expiration}, result)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -412,6 +431,8 @@ async def get_recommendations(
     symbol: Annotated[str, Field(description="Ticker symbol")],
 ) -> str:
     """Analyst recommendation history (broker, action, from/to grade, etc.)."""
+    if _c := cache.get('get_recommendations', {'symbol': symbol}):
+        return _c
     try:
         ticker = await make_ticker(symbol)
         df = await asyncio.to_thread(lambda: ticker.recommendations)
@@ -436,7 +457,9 @@ async def get_recommendations(
             details={"symbol": symbol},
         )
 
-    return dump_json({"symbol": symbol, "rows": rows})
+    result = dump_json({"symbol": symbol, "rows": rows})
+    cache.put("get_recommendations", {"symbol": symbol}, result)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -449,6 +472,8 @@ async def get_calendar(
     symbol: Annotated[str, Field(description="Ticker symbol")],
 ) -> str:
     """Earnings / dividend calendar for the symbol."""
+    if _c := cache.get('get_calendar', {'symbol': symbol}):
+        return _c
     try:
         ticker = await make_ticker(symbol)
         cal = await asyncio.to_thread(lambda: ticker.calendar)
@@ -491,7 +516,9 @@ async def get_calendar(
             )
         return dump_json({"symbol": symbol, "calendar": cal})
 
-    return dump_json({"symbol": symbol, "calendar": cal})
+    result = dump_json({"symbol": symbol, "calendar": cal})
+    cache.put("get_calendar", {"symbol": symbol}, result)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -515,6 +542,8 @@ async def get_holders(
     ] = "institutional",
 ) -> str:
     """Holder breakdown (major / institutional / mutual fund)."""
+    if _c := cache.get('get_holders', {'symbol': symbol, 'holder_type': holder_type}):
+        return _c
     attr = _HOLDER_ATTR_MAP.get(holder_type)
     if attr is None:
         return create_error_response(
@@ -547,7 +576,9 @@ async def get_holders(
             details={"symbol": symbol, "holder_type": holder_type},
         )
 
-    return dump_json({"symbol": symbol, "holder_type": holder_type, "rows": rows})
+    result = dump_json({"symbol": symbol, "holder_type": holder_type, "rows": rows})
+    cache.put("get_holders", {"symbol": symbol, "holder_type": holder_type}, result)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -560,6 +591,8 @@ async def get_insider_transactions(
     symbol: Annotated[str, Field(description="Ticker symbol")],
 ) -> str:
     """Insider transaction history (officers/directors filings)."""
+    if _c := cache.get('get_insider_transactions', {'symbol': symbol}):
+        return _c
     try:
         ticker = await make_ticker(symbol)
         df = await asyncio.to_thread(lambda: ticker.insider_transactions)
@@ -584,7 +617,9 @@ async def get_insider_transactions(
             details={"symbol": symbol},
         )
 
-    return dump_json({"symbol": symbol, "rows": rows})
+    result = dump_json({"symbol": symbol, "rows": rows})
+    cache.put("get_insider_transactions", {"symbol": symbol}, result)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -597,6 +632,8 @@ async def get_fast_info(
     symbol: Annotated[str, Field(description="Ticker symbol")],
 ) -> str:
     """Lightweight quote snapshot (last price, market cap, day range, etc.)."""
+    if _c := cache.get('get_fast_info', {'symbol': symbol}):
+        return _c
     try:
         ticker = await make_ticker(symbol)
         fast = await asyncio.to_thread(lambda: ticker.fast_info)
@@ -658,4 +695,6 @@ async def get_fast_info(
             details={"symbol": symbol},
         )
 
-    return dump_json({"symbol": symbol, "fast_info": snapshot})
+    result = dump_json({"symbol": symbol, "fast_info": snapshot})
+    cache.put("get_fast_info", {"symbol": symbol}, result)
+    return result
