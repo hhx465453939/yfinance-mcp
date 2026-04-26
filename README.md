@@ -253,6 +253,45 @@ python .\.debug\smoke_tools_list.py
 
 ---
 
+## 限流与缓存
+
+yfinance-mcp 内置了请求限流和可选的结果缓存，避免多 agent 并发调用时触发 Yahoo Finance 的 429 限速。
+
+### 限流（默认开启）
+
+所有 yfinance 请求经过 asyncio 全局锁串行化，最小间隔 1.5 秒。无额外依赖，开箱即用。
+
+| 环境变量 | 默认值 | 说明 |
+|----------|--------|------|
+| `YFMCP_MIN_INTERVAL` | `1.5` | 连续请求最小间隔（秒） |
+
+### 结果缓存（可选）
+
+在 MCP tool 返回值层面缓存 JSON 结果，相同参数 + TTL 内直接返回缓存，不再请求 Yahoo。与 yfinance 内部的 curl_cffi 完全兼容。
+
+在 MCP 客户端配置的 `env` 中设置 `YFMCP_RESULT_CACHE_DIR` 即可启用，不设置则不缓存。
+
+| 环境变量 | 默认值 | 说明 |
+|----------|--------|------|
+| `YFMCP_RESULT_CACHE_DIR` | （空） | 缓存目录路径。设置后启用缓存，不设置则禁用 |
+| `YFMCP_RESULT_CACHE_TTL` | `300` | 缓存有效期（秒） |
+
+配置示例（Docker / mcporter）：
+
+```json
+{
+  "yfmcp": {
+    "command": "...",
+    "env": {
+      "YFMCP_RESULT_CACHE_DIR": "/home/node/.openclaw/.cache/yfmcp-results",
+      "YFMCP_RESULT_CACHE_TTL": "300"
+    }
+  }
+}
+```
+
+---
+
 ## 常见问题（Cursor 挂载排查）
 
 | 现象 | 排查方向 |
