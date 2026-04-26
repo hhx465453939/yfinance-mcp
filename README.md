@@ -1,7 +1,7 @@
 # Yahoo Finance MCP 服务器
 
 [![PyPI version](https://img.shields.io/pypi/v/yfmcp)](https://pypi.org/project/yfmcp/)
-[![Python](https://img.shields.io/pypi/pyversions/yfmcp)](https://pypi.org/project/yfmcp/)
+[![Python](https://img.shields.io/pypi/pyversions/yfmcp.svg)](https://pypi.org/project/yfmcp/)
 [![CI](https://github.com/narumiruna/yfinance-mcp/actions/workflows/python.yml/badge.svg)](https://github.com/narumiruna/yfinance-mcp/actions/workflows/python.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -328,6 +328,14 @@ python .debug/smoke_tools_list.py
 ## Demo Chatbot
 
 参考独立仓库：[yfinance-mcp-demo](https://github.com/narumiruna/yfinance-mcp-demo)
+
+## Contributors
+
+<a href="https://github.com/narumiruna/yfinance-mcp/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=narumiruna/yfinance-mcp" />
+</a>
+
+Made with [contrib.rocks](https://contrib.rocks).
 
 ## License
 
