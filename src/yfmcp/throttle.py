@@ -57,8 +57,7 @@ def _init_session():
     try:
         from requests import Session
         from requests_cache import CacheMixin, SQLiteCache
-        from requests_ratelimiter import LimiterMixin, MemoryQueueBucket
-        from pyrate_limiter import Duration, RequestRate, Limiter
+        from requests_ratelimiter import LimiterMixin, Rate, SingleBucketFactory, InMemoryBucket
 
         class CachedLimiterSession(CacheMixin, LimiterMixin, Session):
             pass
@@ -67,9 +66,10 @@ def _init_session():
         cache_dir.mkdir(parents=True, exist_ok=True)
         expire = int(os.environ.get("YFMCP_CACHE_EXPIRE", "300"))
 
+        rates = [Rate(1, 3)]
         _session = CachedLimiterSession(
-            limiter=Limiter(RequestRate(1, Duration.SECOND * 3)),
-            bucket_class=MemoryQueueBucket,
+            rates=rates,
+            bucket_factory=SingleBucketFactory(InMemoryBucket(rates)),
             backend=SQLiteCache(str(cache_dir / "requests"), expire_after=expire),
         )
         logger.info("yfmcp: session cache enabled at {}", cache_dir)
