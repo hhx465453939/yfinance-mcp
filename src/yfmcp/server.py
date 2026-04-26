@@ -19,6 +19,7 @@ from yfmcp.types import Sector
 from yfmcp.types import TopType
 from yfmcp.utils import create_error_response
 from yfmcp.utils import dump_json
+from yfmcp.throttle import make_ticker, throttle
 
 # https://github.com/jlowin/fastmcp/issues/81#issuecomment-2714245145
 mcp = FastMCP("yfinance_mcp", log_level="ERROR")
@@ -50,7 +51,7 @@ async def get_ticker_info(
     Note: Available fields vary by security type. Timestamps are converted to readable dates.
     """
     try:
-        ticker = await asyncio.to_thread(yf.Ticker, symbol)
+        ticker = await make_ticker(symbol)
         info = await asyncio.to_thread(lambda: ticker.info)
     except (ConnectionError, TimeoutError, OSError) as exc:
         return create_error_response(
@@ -119,7 +120,7 @@ async def get_ticker_news(
     Use this to track company announcements, market sentiment, and breaking news.
     """
     try:
-        ticker = await asyncio.to_thread(yf.Ticker, symbol)
+        ticker = await make_ticker(symbol)
         news = await asyncio.to_thread(ticker.get_news)
     except (ConnectionError, TimeoutError, OSError) as exc:
         return create_error_response(
@@ -190,6 +191,7 @@ async def search(
     Use this to find ticker symbols, discover related securities, or search financial news.
     """
     try:
+        await throttle()
         s = await asyncio.to_thread(yf.Search, query)
     except (ConnectionError, TimeoutError, OSError) as exc:
         return create_error_response(
@@ -230,6 +232,7 @@ async def get_top_etfs(
     - name: Full ETF name
     """
     try:
+        await throttle()
         s = await asyncio.to_thread(yf.Sector, sector)
         etfs = await asyncio.to_thread(lambda: s.top_etfs)
     except (ConnectionError, TimeoutError, OSError) as exc:
@@ -267,6 +270,7 @@ async def get_top_mutual_funds(
     - name: Full fund name
     """
     try:
+        await throttle()
         s = await asyncio.to_thread(yf.Sector, sector)
         funds = await asyncio.to_thread(lambda: s.top_mutual_funds)
     except (ConnectionError, TimeoutError, OSError) as exc:
@@ -304,6 +308,7 @@ async def get_top_companies(
     Typically includes company identifiers, market metrics, and analyst information.
     """
     try:
+        await throttle()
         s = await asyncio.to_thread(yf.Sector, sector)
         df = await asyncio.to_thread(lambda: s.top_companies)
     except (ConnectionError, TimeoutError, OSError) as exc:
@@ -352,6 +357,7 @@ async def get_top_growth_companies(
     results = []
     for industry_name in industries:
         try:
+            await throttle()
             industry = await asyncio.to_thread(yf.Industry, industry_name)
         except Exception as exc:
             logger.warning("Failed to load industry {}: {}", industry_name, exc)
@@ -401,6 +407,7 @@ async def get_top_performing_companies(
     results = []
     for industry_name in industries:
         try:
+            await throttle()
             industry = await asyncio.to_thread(yf.Industry, industry_name)
         except Exception as exc:
             logger.warning("Failed to load industry {}: {}", industry_name, exc)
@@ -566,7 +573,7 @@ async def get_price_history(
     only work with short periods (1d, 5d).
     """
     try:
-        ticker = await asyncio.to_thread(yf.Ticker, symbol)
+        ticker = await make_ticker(symbol)
         df = await asyncio.to_thread(
             ticker.history,
             period=period,

@@ -34,6 +34,7 @@ from pydantic import Field
 
 from yfmcp.chart import generate_chart
 from yfmcp.server import mcp
+from yfmcp.throttle import make_ticker, throttled_download
 from yfmcp.types import ChartType
 from yfmcp.types import Interval
 from yfmcp.types import Period
@@ -157,7 +158,7 @@ async def download(
     kwargs = _build_download_kwargs(symbols, period, interval, start, end, auto_adjust, prepost)
 
     try:
-        df = await asyncio.to_thread(yf.download, **kwargs)
+        df = await throttled_download(**kwargs)
     except (ConnectionError, TimeoutError, OSError) as exc:
         return create_error_response(
             f"Network error while downloading {symbols}. Check your internet connection and try again.",
@@ -232,7 +233,7 @@ async def get_history_advanced(
         history_kwargs["period"] = period
 
     try:
-        ticker = await asyncio.to_thread(yf.Ticker, symbol)
+        ticker = await make_ticker(symbol)
         df = await asyncio.to_thread(ticker.history, **history_kwargs)
     except (ConnectionError, TimeoutError, OSError) as exc:
         return create_error_response(
@@ -298,7 +299,7 @@ async def get_financials(
     attr = attr_quarterly if quarterly else attr_annual
 
     try:
-        ticker = await asyncio.to_thread(yf.Ticker, symbol)
+        ticker = await make_ticker(symbol)
         df = await asyncio.to_thread(lambda: getattr(ticker, attr))
     except (ConnectionError, TimeoutError, OSError) as exc:
         return create_error_response(
@@ -350,7 +351,7 @@ async def get_options(
             return create_error_response(err, error_code="INVALID_PARAMS", details={"expiration": expiration})
 
     try:
-        ticker = await asyncio.to_thread(yf.Ticker, symbol)
+        ticker = await make_ticker(symbol)
         expirations = await asyncio.to_thread(lambda: list(getattr(ticker, "options", []) or []))
     except (ConnectionError, TimeoutError, OSError) as exc:
         return create_error_response(
@@ -412,7 +413,7 @@ async def get_recommendations(
 ) -> str:
     """Analyst recommendation history (broker, action, from/to grade, etc.)."""
     try:
-        ticker = await asyncio.to_thread(yf.Ticker, symbol)
+        ticker = await make_ticker(symbol)
         df = await asyncio.to_thread(lambda: ticker.recommendations)
     except (ConnectionError, TimeoutError, OSError) as exc:
         return create_error_response(
@@ -449,7 +450,7 @@ async def get_calendar(
 ) -> str:
     """Earnings / dividend calendar for the symbol."""
     try:
-        ticker = await asyncio.to_thread(yf.Ticker, symbol)
+        ticker = await make_ticker(symbol)
         cal = await asyncio.to_thread(lambda: ticker.calendar)
     except (ConnectionError, TimeoutError, OSError) as exc:
         return create_error_response(
@@ -523,7 +524,7 @@ async def get_holders(
         )
 
     try:
-        ticker = await asyncio.to_thread(yf.Ticker, symbol)
+        ticker = await make_ticker(symbol)
         df = await asyncio.to_thread(lambda: getattr(ticker, attr))
     except (ConnectionError, TimeoutError, OSError) as exc:
         return create_error_response(
@@ -560,7 +561,7 @@ async def get_insider_transactions(
 ) -> str:
     """Insider transaction history (officers/directors filings)."""
     try:
-        ticker = await asyncio.to_thread(yf.Ticker, symbol)
+        ticker = await make_ticker(symbol)
         df = await asyncio.to_thread(lambda: ticker.insider_transactions)
     except (ConnectionError, TimeoutError, OSError) as exc:
         return create_error_response(
@@ -597,7 +598,7 @@ async def get_fast_info(
 ) -> str:
     """Lightweight quote snapshot (last price, market cap, day range, etc.)."""
     try:
-        ticker = await asyncio.to_thread(yf.Ticker, symbol)
+        ticker = await make_ticker(symbol)
         fast = await asyncio.to_thread(lambda: ticker.fast_info)
     except (ConnectionError, TimeoutError, OSError) as exc:
         return create_error_response(
